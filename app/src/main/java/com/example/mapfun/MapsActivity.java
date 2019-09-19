@@ -9,6 +9,7 @@ import android.Manifest;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -36,9 +37,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     final private int REQUEST_CODE_ASK_PERMISSIONS = 123;
 
     private GoogleMap mMap;
-    private LocationListener locationListener;
+    private LocationListener oneTimeLocationListener;
+    private LocationListener trackingLocationListener;
     private LocationManager locationManager;
-
+    private String latitude="",longitude="",adressFromLatLng="";
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -55,6 +57,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
+
         mMap = googleMap;
 
         getPermission();
@@ -84,7 +87,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         } else {
 
            showLastKnownLocation();
+            /** this method will execute only once */
               getUserLocation();
+            /** this method will execute every 15 secs to check if user moved and show it on map*/
+            trackUserLocation();
         }
     }
 
@@ -99,11 +105,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         if(lastKnownLocation!=null)
         {
+            Log.i(TAG, "showLastKnownLocation: success");
             showOnMap(lastKnownLocation.getLatitude(),lastKnownLocation.getLongitude());
         }else
         {
             Log.i(TAG, "lastKnownLocation=null");
-            getUserLocation();
+
         }
 
 
@@ -111,31 +118,52 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void getUserLocation() {
-        if(!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            Log.i(TAG, "gps is off");
-            turnOnGPS();
-            return;
+
+
+
+        Log.i(TAG, "getUserLocation once: ");
+        setupOneTimeLocationListener();
+
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                    0,
+                    0, // minimum distance in meters that will trigger the onLocationChange function
+                    oneTimeLocationListener);
         }
 
+    }
 
-        Log.i(TAG, "getUserLocation: ");
+    private void trackUserLocation() {
 
-        locationListener = new LocationListener() {
+        /** this method will execute every 15 sec */
+
+        Log.i(TAG, "trackUserLocation: each 15 sec ");
+        setupTrackingLocationListener();
+
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                    15, // every 15 seconds it will check if location changed
+                    50, // minimum distance in meters that will trigger the onLocationChange function
+                    trackingLocationListener);
+        }
+
+    }
+
+    private void setupTrackingLocationListener() {
+        trackingLocationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
                 Log.i(TAG, location.toString());
                 showOnMap(location.getLatitude(),location.getLongitude());
 
-
-                /** to stop listening to location changes after first time*/
-               /* locationManager.removeUpdates(locationListener);
-                locationManager = null;*/
-
+                Log.i(TAG, "TrackingonLocationChanged: ");
             }
 
             @Override
             public void onStatusChanged(String s, int i, Bundle bundle) {
-
+                /*deprecated */
             }
 
             @Override
@@ -146,28 +174,78 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onProviderDisabled(String s) {
                 Log.i(TAG, "onProviderDisabled: ");
+                turnOnGPS();
             }
         };
-
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
-                    10000, // every 10 seconds it will check if location changed
-                    50, // minimum distance in meters that will trigger the onLocationChange function
-                    locationListener);
-        }
-
     }
+
+    private void setupOneTimeLocationListener() {
+        oneTimeLocationListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+                Log.i(TAG, location.toString());
+                showOnMap(location.getLatitude(),location.getLongitude());
+
+
+                Log.i(TAG, "1 -setupOneTimeLocationListener");
+                /** to stop listening to location changes after first time*/
+                if(locationManager!=null)
+                {
+                    Log.i(TAG, "2 -stoped listening ");
+                    locationManager.removeUpdates(oneTimeLocationListener);
+                    locationManager = null;
+                }else
+                {
+                    Log.i(TAG, "2 -locationManager==null ");
+                }
+
+
+            }
+
+            @Override
+            public void onStatusChanged(String s, int i, Bundle bundle) {
+                /*deprecated */
+            }
+
+            @Override
+            public void onProviderEnabled(String s) {
+                Log.i(TAG, "onProviderEnabled: ");
+            }
+
+            @Override
+            public void onProviderDisabled(String s) {
+                Log.i(TAG, "onProviderDisabled: ");
+                turnOnGPS();
+            }
+        };
+    }
+
 
     private void addMarkerOnLongClick() {
         mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
+                String adressFromLatLng = getAdressFromLatLng(latLng.latitude, latLng.longitude);
                 mMap.addMarker(new MarkerOptions()
                         .position(new LatLng(latLng.latitude, latLng.longitude))
-                        .title( getAdressFromLatLng(latLng.latitude, latLng.longitude)));
+                        .title( adressFromLatLng));
+
+                savePlace(latLng.latitude,latLng.longitude,adressFromLatLng);
             }
         });
+    }
+
+    private void savePlace(double latitude, double longitude, String adressFromLatLng) {
+        //todo save location , address in shared pref and show it in recycler on start
+        this.latitude+=latitude+"%";
+        this.longitude+=longitude+"%";
+        this.adressFromLatLng+=adressFromLatLng+"%";
+
+        SharedPreferences.Editor editor = getSharedPreferences("MyPrefsFile", MODE_PRIVATE).edit();
+        editor.putString("latitude",  this.latitude);
+        editor.putString("longitude",  this.longitude);
+        editor.putString("adressFromLatLng",  this.adressFromLatLng);
+        editor.apply();
     }
 
     private void turnOnGPS() {
@@ -256,7 +334,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                   getUserLocation();
                 } else {
                     // Permission Denied
-                    Toast.makeText(MapsActivity.this, "Permission Denied", Toast.LENGTH_SHORT)
+                    Toast.makeText(MapsActivity.this, "Permission Denied \n Can't show your location", Toast.LENGTH_LONG)
                             .show();
                 }
                 break;
@@ -265,14 +343,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-
-    @Override
-    protected void onRestart() {
-        super.onRestart();
-        getUserLocation()
-                ;
-        Log.i(TAG, "onRestart: ");
-    }
 
 
 }
