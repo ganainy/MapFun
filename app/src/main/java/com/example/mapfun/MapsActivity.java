@@ -24,11 +24,9 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.internal.IGoogleMapDelegate;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -46,6 +44,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
+        locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -53,23 +52,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
+
     @Override
     public void onMapReady(GoogleMap googleMap) {
-
-        /**i think this is called before on create*/
-        locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
-
         mMap = googleMap;
+
         getPermission();
+
+        addMarkerOnLongClick();
+
+
+
+
 
 /*
         mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
@@ -78,6 +72,104 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(sydney,15f));*/
     }
+
+
+
+
+    private void getPermission() {
+        //no need to check if sdk is <23 since minsdk is 23
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat
+                    .requestPermissions(MapsActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_CODE_ASK_PERMISSIONS);
+        } else {
+
+           showLastKnownLocation();
+              getUserLocation();
+        }
+    }
+
+    private void showLastKnownLocation() {
+
+        LocationManager locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+
+        if(lastKnownLocation!=null)
+        {
+            showOnMap(lastKnownLocation.getLatitude(),lastKnownLocation.getLongitude());
+        }else
+        {
+            Log.i(TAG, "lastKnownLocation=null");
+            getUserLocation();
+        }
+
+
+
+    }
+
+    private void getUserLocation() {
+        if(!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            Log.i(TAG, "gps is off");
+            turnOnGPS();
+            return;
+        }
+
+
+        Log.i(TAG, "getUserLocation: ");
+
+        locationListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+                Log.i(TAG, location.toString());
+                showOnMap(location.getLatitude(),location.getLongitude());
+
+
+                /** to stop listening to location changes after first time*/
+               /* locationManager.removeUpdates(locationListener);
+                locationManager = null;*/
+
+            }
+
+            @Override
+            public void onStatusChanged(String s, int i, Bundle bundle) {
+
+            }
+
+            @Override
+            public void onProviderEnabled(String s) {
+                Log.i(TAG, "onProviderEnabled: ");
+            }
+
+            @Override
+            public void onProviderDisabled(String s) {
+                Log.i(TAG, "onProviderDisabled: ");
+            }
+        };
+
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                    10000, // every 10 seconds it will check if location changed
+                    50, // minimum distance in meters that will trigger the onLocationChange function
+                    locationListener);
+        }
+
+    }
+
+    private void addMarkerOnLongClick() {
+        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+            @Override
+            public void onMapLongClick(LatLng latLng) {
+                mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(latLng.latitude, latLng.longitude))
+                        .title( getAdressFromLatLng(latLng.latitude, latLng.longitude)));
+            }
+        });
+    }
+
     private void turnOnGPS() {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -99,93 +191,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
-    private void getPermission() {
-        //no need to check if sdk is <23 since minsdk is 23
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat
-                    .requestPermissions(MapsActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_CODE_ASK_PERMISSIONS);
-        } else {
-
-           // showLastKnownLocation();
-              getLocation();
-        }
-    }
-
-    private void showLastKnownLocation() {
-
-        LocationManager locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-
-        Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-
-        if(lastKnownLocation!=null)
-        {
-            mMap.clear();
-            mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-            // Add a marker in Sydney and move the camera
-            LatLng userLocation = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-            mMap.addMarker(new MarkerOptions().position(userLocation).title("My location"));
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation,20f));
-        }else
-        {
-            Log.i(TAG, "lastKnownLocation=null");
-        }
-
-
-
-    }
-
-    private void getLocation() {
-        if(!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            Log.i(TAG, "gps is off");
-            turnOnGPS();
-            return;
-        }
-
-
-        Log.i(TAG, "getLocation: ");
-
-          locationListener = new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                Log.i(TAG, location.toString());
-                showOnMap(location.getLatitude(),location.getLongitude());
-
-
-                /** to stop listening to location changes after first time*/
-                locationManager.removeUpdates(locationListener);
-                locationManager = null;
-
-            }
-
-            @Override
-            public void onStatusChanged(String s, int i, Bundle bundle) {
-
-            }
-
-            @Override
-            public void onProviderEnabled(String s) {
-
-            }
-
-            @Override
-            public void onProviderDisabled(String s) {
-
-            }
-        };
-
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
-                    1000, // every 1 seconds it will check if location changed
-                    0, // minimum distance in meters that will trigger the onLocationChange function
-                    locationListener);
-        }
-
-    }
-
     private void showOnMap(double latitude, double longitude) {
 
 
@@ -199,6 +204,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation,15f));
 
         /**show toast with address of that location*/
+        String adressFromLatLng = getAdressFromLatLng(latitude, longitude);
+        Toast.makeText(this, adressFromLatLng, Toast.LENGTH_SHORT).show();
+
+    }
+
+    private String getAdressFromLatLng(double latitude, double longitude) {
         Geocoder geocoder=new Geocoder(getApplicationContext(), Locale.getDefault());
         try {
             List<Address> fromLocation = geocoder.getFromLocation(latitude, longitude, 1);
@@ -215,18 +226,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 address+=subAdminArea;
 
 
-                    Toast.makeText(this, address, Toast.LENGTH_SHORT).show();
+                    return address;
 
 
             }else
             {
                 Log.i(TAG, "fromLocation is empty");
+                return"";
             }
 
         } catch (Exception e) {
             Log.i(TAG, "getFromLocation exception:"+e.getMessage());
             Toast.makeText(this, "getFromLocation exception:"+e.getMessage(), Toast.LENGTH_LONG).show();
+            return"";
         }
+
 
     }
 
@@ -239,7 +253,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     // Permission Granted
                     Toast.makeText(MapsActivity.this, "Permission Granted", Toast.LENGTH_SHORT)
                             .show();
-                  getLocation();
+                  getUserLocation();
                 } else {
                     // Permission Denied
                     Toast.makeText(MapsActivity.this, "Permission Denied", Toast.LENGTH_SHORT)
@@ -255,14 +269,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     protected void onRestart() {
         super.onRestart();
-        getLocation()
+        getUserLocation()
                 ;
         Log.i(TAG, "onRestart: ");
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        Log.i(TAG, "onResume: ");
-    }
+
 }

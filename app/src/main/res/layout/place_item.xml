@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    android:padding="8dp"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal" android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <TextView
+        android:textSize="24sp"
+        android:textColor="#000000"
+        android:id="@+id/placeTextView"
+        android:layout_weight="1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="TextView" />
+
+    <ImageView
+        android:layout_marginTop="4dp"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:src="@drawable/ic_map_black_24dp"/>
+
+</LinearLayout>
