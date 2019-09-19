@@ -7,6 +7,8 @@ import androidx.fragment.app.FragmentActivity;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -21,6 +23,10 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.internal.IGoogleMapDelegate;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -114,6 +120,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Log.i(TAG, location.toString());
                 showOnMap(location.getLatitude(),location.getLongitude());
 
+
+                /** to stop listening to location changes after first time*/
                 locationManager.removeUpdates(locationListener);
                 locationManager = null;
 
@@ -137,20 +145,56 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,0,0,locationListener);
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                    1000, // every 1 seconds it will check if location changed
+                    0, // minimum distance in meters that will trigger the onLocationChange function
+                    locationListener);
         }
 
     }
 
     private void showOnMap(double latitude, double longitude) {
 
+
+        /** show given location with marker and zoom 15/20 */
         Log.i(TAG, "showOnMap: ");
         mMap.clear();
         mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
         // Add a marker in Sydney and move the camera
         LatLng userLocation = new LatLng(latitude, longitude);
         mMap.addMarker(new MarkerOptions().position(userLocation).title("My location"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation,20f));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation,15f));
+
+        /**show toast with address of that location*/
+        Geocoder geocoder=new Geocoder(getApplicationContext(), Locale.getDefault());
+        try {
+            List<Address> fromLocation = geocoder.getFromLocation(latitude, longitude, 1);
+            if(fromLocation!=null  && fromLocation.size()>0)
+            {
+                String subAdminArea = fromLocation.get(0).getSubAdminArea();
+                String thoroughfare = fromLocation.get(0).getThoroughfare();
+                /** show which exists of area and street or both*/
+                String address="";
+                if(thoroughfare!=null  )
+                  address+=thoroughfare+"\n";
+
+                if (subAdminArea!=null)
+                address+=subAdminArea;
+
+
+                    Toast.makeText(this, address, Toast.LENGTH_SHORT).show();
+
+
+            }else
+            {
+                Log.i(TAG, "fromLocation is empty");
+            }
+
+        } catch (Exception e) {
+            Log.i(TAG, "getFromLocation exception:"+e.getMessage());
+            Toast.makeText(this, "getFromLocation exception:"+e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+
     }
 
 
