@@ -6,11 +6,13 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import android.Manifest;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.sqlite.SQLiteDatabase;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -21,10 +23,14 @@ import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.example.mapfun.Database.DatabaseHelper;
+import com.example.mapfun.Database.PlaceModel;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
@@ -40,19 +46,34 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private LocationListener oneTimeLocationListener;
     private LocationListener trackingLocationListener;
     private LocationManager locationManager;
-    private String latitude="",longitude="",adressFromLatLng="";
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+
+
+
+
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
     }
 
+    private boolean handleAdapterIntent() {
+        if(getIntent().hasExtra("lat")&&getIntent().hasExtra("long")&&getIntent().hasExtra("address"))
+        {
+            String lat = getIntent().getStringExtra("lat");
+            String longitude = getIntent().getStringExtra("long");
+            String address = getIntent().getStringExtra("address");
+            showOnMap(Double.valueOf(lat),Double.valueOf(longitude),address);
+            return true;
+        }
+         return false;
+    }
 
 
     @Override
@@ -60,23 +81,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         mMap = googleMap;
 
+
+        /** check if activity was opened from the adapter intent*/
+        if(handleAdapterIntent())
+        {
+            return;
+        }
+
         getPermission();
 
         addMarkerOnLongClick();
 
-
-
-
-
-/*
-        mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-        // Add a marker in Sydney and move the camera
-        LatLng sydney = new LatLng(-34, 151);
-        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(sydney,15f));*/
     }
-
-
 
 
     private void getPermission() {
@@ -235,17 +251,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
     }
 
-    private void savePlace(double latitude, double longitude, String adressFromLatLng) {
-        //todo save location , address in shared pref and show it in recycler on start
-        this.latitude+=latitude+"%";
-        this.longitude+=longitude+"%";
-        this.adressFromLatLng+=adressFromLatLng+"%";
+    private long savePlace(double latitude, double longitude, String adressFromLatLng) {
 
-        SharedPreferences.Editor editor = getSharedPreferences("MyPrefsFile", MODE_PRIVATE).edit();
-        editor.putString("latitude",  this.latitude);
-        editor.putString("longitude",  this.longitude);
-        editor.putString("adressFromLatLng",  this.adressFromLatLng);
-        editor.apply();
+            // get writable database as we want to write data
+            SQLiteDatabase db = new DatabaseHelper(MapsActivity.this).getWritableDatabase();
+
+            ContentValues values = new ContentValues();
+
+            values.put(PlaceModel.COLUMN_ADDRESS, adressFromLatLng);
+            values.put(PlaceModel.COLUMN_LATITUDE, latitude+"");
+            values.put(PlaceModel.COLUMN_LONGITUDE, longitude+"");
+
+            // insert row
+            long id = db.insert(PlaceModel.TABLE_NAME, null, values);
+
+            // close db connection
+            db.close();
+
+            // return newly inserted row id
+        Log.i(TAG, "savePlace: "+id);
+
+        return id;
+
     }
 
     private void turnOnGPS() {
@@ -283,6 +310,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         /**show toast with address of that location*/
         String adressFromLatLng = getAdressFromLatLng(latitude, longitude);
+        if(!adressFromLatLng.equals(""))
+        Toast.makeText(this, adressFromLatLng, Toast.LENGTH_SHORT).show();
+
+    }
+
+    private void showOnMap(double latitude, double longitude,String adressFromLatLng) {
+
+
+        /** show given location with marker and zoom 15/20 */
+        Log.i(TAG, "showOnMap: ");
+        mMap.clear();
+
+
+        LatLng userLocation = new LatLng(latitude, longitude);
+        mMap.addMarker(new MarkerOptions().position(userLocation).title(adressFromLatLng).icon(BitmapDescriptorFactory.fromResource(R.drawable.like)));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation,20f));
+
+
+        if(!adressFromLatLng.equals(""))
         Toast.makeText(this, adressFromLatLng, Toast.LENGTH_SHORT).show();
 
     }

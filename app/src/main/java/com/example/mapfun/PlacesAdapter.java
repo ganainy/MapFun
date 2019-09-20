@@ -1,6 +1,7 @@
 package com.example.mapfun;
 
 import android.content.Context;
+import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -9,19 +10,22 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.mapfun.Database.PlaceModel;
+
 import java.util.List;
 import java.util.zip.Inflater;
 
 public class PlacesAdapter extends  RecyclerView.Adapter<PlacesAdapter.PlacesViewHolder>{
 
+    private final List<PlaceModel> placeModelList;
     Context context;
-    String [] latitudeList,longitudeList,adressFromLatLngList;
 
-    public PlacesAdapter(Context context,String [] latitudeList,String [] longitudeList, String [] adressFromLatLngList) {
+
+
+
+    public PlacesAdapter(Context context, List<PlaceModel> placeModelList) {
         this.context = context;
-        this.latitudeList = latitudeList;
-        this.longitudeList = longitudeList;
-        this.adressFromLatLngList = adressFromLatLngList;
+        this.placeModelList=placeModelList;
     }
 
     @NonNull
@@ -34,15 +38,21 @@ public class PlacesAdapter extends  RecyclerView.Adapter<PlacesAdapter.PlacesVie
     @Override
     public void onBindViewHolder(@NonNull PlacesViewHolder holder, int position) {
 
-        holder.latTextView.setText(latitudeList[position]);
-        holder.longTextView.setText(longitudeList[position]);
-        holder.placeTextView.setText(adressFromLatLngList[position]);
+        holder.latTextView.setText(placeModelList.get(position).getLatitude());
+        holder.longTextView.setText(placeModelList.get(position).getLongitude());
 
+        if(placeModelList.get(position).getAddress().equals(""))
+        {
+            holder.placeTextView.setText("Coordinates don't have an address");
+        }else
+        {
+        holder.placeTextView.setText(placeModelList.get(position).getAddress());
+        }
     }
 
     @Override
     public int getItemCount() {
-        return latitudeList.length;
+        return placeModelList.size();
     }
 
 
@@ -60,6 +70,20 @@ public class PlacesAdapter extends  RecyclerView.Adapter<PlacesAdapter.PlacesVie
             latTextView=itemView.findViewById(R.id.latTextView);
             longTextView=itemView.findViewById(R.id.longTextView);
             placeTextView=itemView.findViewById(R.id.placeTextView);
+
+
+
+            itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Intent intent=new Intent(context,MapsActivity.class);
+                    intent.putExtra("lat",placeModelList.get(getAdapterPosition()).getLatitude());
+                    intent.putExtra("long",placeModelList.get(getAdapterPosition()).getLongitude());
+                    intent.putExtra("address",placeModelList.get(getAdapterPosition()).getAddress());
+                    HomeActivity homeActivity=(HomeActivity)context;
+                    homeActivity.startActivity(intent);
+                }
+            });
         }
     }
 

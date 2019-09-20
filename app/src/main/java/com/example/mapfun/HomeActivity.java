@@ -2,8 +2,12 @@ package com.example.mapfun;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 
+import com.example.mapfun.Database.DatabaseHelper;
+import com.example.mapfun.Database.PlaceModel;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -14,6 +18,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import android.util.Log;
 import android.view.View;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class HomeActivity extends AppCompatActivity {
     private static final String TAG = "HomeActivityh";
@@ -27,7 +34,6 @@ public class HomeActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
 
 
-        getPlaces();
 
 
         FloatingActionButton fab = findViewById(R.id.fab);
@@ -42,28 +48,48 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void getPlaces() {
-        SharedPreferences prefs = getSharedPreferences("MyPrefsFile", MODE_PRIVATE);
+        // get readable database as we are not inserting anything
+        SQLiteDatabase db = new DatabaseHelper(this).getReadableDatabase();
+        List<PlaceModel> placeModelList = new ArrayList<>();
 
-        String latitude = prefs.getString("latitude", "latitude");
-        String longitude = prefs.getString("longitude", "longitude");
-        String adressFromLatLng = prefs.getString("adressFromLatLng", "adressFromLatLng");
+        // Select All Query
+        String selectQuery = "SELECT  * FROM " + PlaceModel.TABLE_NAME + " ORDER BY " +
+                PlaceModel.COLUMN_ID + " DESC";
 
+        Cursor cursor = db.rawQuery(selectQuery, null);
 
-        String[] latitudeList = latitude.split("%");
-        String[] longitudeList = longitude.split("%");
-        String[] adressFromLatLngList = adressFromLatLng.split("%");
+        // looping through all rows and adding to list
+        if (cursor.moveToFirst()) {
+            do {
+                PlaceModel placeModel = new PlaceModel();
+                placeModel.setId(cursor.getInt(cursor.getColumnIndex(placeModel.COLUMN_ID)));
+                placeModel.setLatitude(cursor.getString(cursor.getColumnIndex(placeModel.COLUMN_LATITUDE)));
+                placeModel.setLongitude(cursor.getString(cursor.getColumnIndex(placeModel.COLUMN_LONGITUDE)));
+                placeModel.setAddress(cursor.getString(cursor.getColumnIndex(placeModel.COLUMN_ADDRESS)));
 
-        initRecycler(latitudeList,longitudeList,adressFromLatLngList);
+                placeModelList.add(placeModel);
+            } while (cursor.moveToNext());
+        }
 
-        //todo open location of selected place on map ,  each time i get SharedPreferences from map activity save it to another bigger home shared pref
+        // close db connection
+        db.close();
+
+        initRecycler(placeModelList);
+
     }
 
-
-    private void initRecycler(String[] latitudeList, String[] longitudeList, String[] adressFromLatLngList) {
+    private void initRecycler(List<PlaceModel> placeModelList) {
         recyclerView = findViewById(R.id.recyclerView);
-        PlacesAdapter placesAdapter=new PlacesAdapter(this,latitudeList,longitudeList,adressFromLatLngList);
+        PlacesAdapter placesAdapter=new PlacesAdapter(this,placeModelList);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(placesAdapter);
     }
 
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        getPlaces();
+    }
 }
